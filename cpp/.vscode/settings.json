@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "lheToRoot.C": "cpp",
+        "analysis.C": "cpp"
+    }
+}
