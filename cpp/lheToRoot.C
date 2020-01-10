@@ -54,7 +54,9 @@ vector<vector<double>> strToVec(vector<string> data){
 
 void vecToTree(vector<vector<double>> dataset, const char *filename){
     TTree *myEvent = new TTree(filename,filename);
+    double croSec;
     vector<double> p1, p2, p3;
+    myEvent->Branch("crossSection",&croSec);
     myEvent->Branch("particle1", &p1);
     myEvent->Branch("particle2", &p2);
     myEvent->Branch("particle3", &p3);
@@ -62,6 +64,10 @@ void vecToTree(vector<vector<double>> dataset, const char *filename){
     while (item<dataset.size())
     {
         if(dataset[item][0]==3.14){
+            if (item+1<dataset.size())
+            {
+                croSec=dataset[item+1][2];
+            }
             item+=2;
         }
         else
@@ -98,6 +104,7 @@ void vecToTree(vector<vector<double>> dataset, const char *filename){
             p3.clear();
             finalState.clear();
         }
+        // cout << croSec << endl;
     }
     myEvent->Write();
     myEvent->Print();
@@ -126,11 +133,11 @@ vector<string> readLhe(const string filepath){
 }
 
 void lheToRoot(){
-    TFile *file = new TFile("/mnt/d/work/bghb/data/bkg.root","RECREATE");
-    int alNum=1;
+    TFile *file = new TFile("/mnt/d/work/bghb/data/signal.root","RECREATE");
+    int alNum=3;
     for (int i = 0; i < alNum; i++)
     {
-        const string filepath="/mnt/d/work/bghb/data/bkg"+to_string(i)+".lhe";
+        const string filepath="/mnt/d/work/bghb/data/signal"+to_string(i)+".lhe";
         char filename[100];
         sprintf(filename,"%d",i);
         vector<vector<double>> eventlist=strToVec(readLhe(filepath));

@@ -34,6 +34,7 @@ using namespace std;
 using namespace ROOT::Math;
 
 int nbins = 20;
+double low=-1, up=1;
 
 double disR(PxPyPzEVector p1, PxPyPzEVector p2){
     return sqrt(pow((p1.Phi()-p2.Phi()),2)+pow(p1.eta()-p2.eta(),2));
@@ -46,8 +47,10 @@ double incluAngle(PxPyPzEVector p1, PxPyPzEVector p2){
     return v1.Dot(v2)/sqrt(v1.Mag2()*v2.Mag2());
 }
 
-double durham(PxPyPzEVector p1, PxPyPzEVector p2){
+double durham(PxPyPzEVector p1, PxPyPzEVector p2, PxPyPzEVector p3){
     double eMin=0;
+    PxPyPzEVector total=p1+p2+p3;
+    double cms=total.e();
     if ((p1.E()) > (p2.E()))
     {
         eMin = p2.E();
@@ -55,41 +58,58 @@ double durham(PxPyPzEVector p1, PxPyPzEVector p2){
     else{
         eMin = p1.E();
     }
-    return 2*(1-incluAngle(p1,p2))*eMin*eMin/pow(240.0,2);
+    return 2*(1-incluAngle(p1,p2))*eMin*eMin/pow(cms,2);
 }
 
-void draw(int binNum, vector<double> data_sm, vector<double> data_cp, vector<double> data_ws, vector<double> bkg){
-    TH1D *Hist_sm = new TH1D("signal","signal_sm",binNum,-1.0,1.0);
-    TH1D *Hist_cp = new TH1D("signal","signal_cp",binNum,-1.0,1.0);
-    TH1D *Hist_ws = new TH1D("signal","signal_ws",binNum,-1.0,1.0);
-    TH1D *Hist_bkg = new TH1D("bg","bg",binNum,-1.0,1.0);
+double histCounter(TH1D *hist){
+    double totalEvents=0;
+    for (int i = 0; i < hist->GetNbinsX(); i++)
+    {
+        totalEvents+=hist->GetBinContent(i+1);
+    }
+    return totalEvents;
+}
+
+void draw(int binNum, vector<double> data_sm, vector<double> data_cp, vector<double> data_ws, vector<vector<double>> bkg){
+    TH1D *Hist_sm = new TH1D("signal","signal_sm",binNum,low,up);
+    TH1D *Hist_cp = new TH1D("signal","signal_cp",binNum,low,up);
+    TH1D *Hist_ws = new TH1D("signal","signal_ws",binNum,low,up);
+    TH1D *Hist_bkg = new TH1D("bg","bg",binNum,low,up);
     THStack *stack = new THStack("result","signal_bkg");
-    for (int i = 0; i < data_sm.size(); i++)
+    for (int i = 0; i < data_sm.size()-2; i++)
     {
         Hist_sm->Fill(data_sm[i]);
     }
-    for (int i = 0; i < data_cp.size(); i++)
+    for (int i = 0; i < data_cp.size()-2; i++)
     {
         Hist_cp->Fill(data_cp[i]);
     }
-    for (int i = 0; i < data_ws.size(); i++)
+    for (int i = 0; i < data_ws.size()-2; i++)
     {
         Hist_ws->Fill(data_ws[i]);
     }
     for (int i = 0; i < bkg.size(); i++)
     {
-        Hist_bkg->Fill(bkg[i]);
+        TH1D *tmp = new TH1D("tmp","tmp",binNum,low,up);
+        for (int j = 0; j < bkg[i].size()-2; j++)
+        {
+            tmp->Fill(bkg[i][j]);
+        }
+        tmp->Scale(30*bkg[i][bkg[i].size()-1]*bkg[i][bkg[i].size()-2],"nosw2");
+        (*Hist_bkg)=(*Hist_bkg)+(*tmp);
+        // cout << histCounter(tmp) << endl;
+        delete tmp;
     }
-    Hist_bkg->SetFillColor(kYellow);
+    Hist_bkg->SetLineColor(kBlack);
     Hist_sm->SetLineColor(kRed);
     Hist_cp->SetLineColor(kBlue);
     Hist_ws->SetLineColor(kGreen);
-    Hist_sm->Scale(1,"nosw2");
-    Hist_cp->Scale(1,"nosw2");
-    Hist_ws->Scale(1,"nosw2");
-    Hist_bkg->Scale(2,"nosw2");
+    Hist_sm->Scale(30*data_sm[data_sm.size()-1]*data_sm[data_sm.size()-2],"nosw2");
+    Hist_cp->Scale(30*data_cp[data_cp.size()-1]*data_cp[data_cp.size()-2],"nosw2");
+    Hist_ws->Scale(30*data_ws[data_ws.size()-1]*data_ws[data_ws.size()-2],"nosw2");
+    Hist_bkg->Scale(0.2,"nosw2");
     stack->Add(Hist_sm);
-    stack->Add(Hist_cp);
+    // stack->Add(Hist_cp);
     stack->Add(Hist_ws);
     stack->Add(Hist_bkg);
     stack->Draw("nostack");
@@ -99,8 +119,8 @@ bool cutcond(PxPyPzEVector pb, PxPyPzEVector pa1, PxPyPzEVector pa2){
     double maa, angle;
     PxPyPzEVector pHiggs=pa1+pa2;
     maa=(pa1+pa2).mag();
-    angle=incluAngle(pHiggs,pb);
-    if (abs(maa-125)<10 && angle<-0.8)
+    angle=incluAngle(pa1,pa2);
+    if (abs(maa-125)<10 && durham(pa1,pa2,pb)>0.001)
     {
         return true;
     }
@@ -110,9 +130,9 @@ bool cutcond(PxPyPzEVector pb, PxPyPzEVector pa1, PxPyPzEVector pa2){
     }
 }
 
-double obs(PxPyPzEVector pa1, PxPyPzEVector pa2){
+double obs(PxPyPzEVector pa1, PxPyPzEVector pa2, PxPyPzEVector pb){
     PxPyPzEVector pHiggs=pa1+pa2;
-    return cos(pHiggs.Theta());
+    return cos(pb.theta());
 }
 
 vector<double> eventtype(vector<double> p1, vector<double> p2, vector<double> p3){
@@ -193,14 +213,18 @@ vector<double> eventtype(vector<double> p1, vector<double> p2, vector<double> p3
 }
 
 vector<double> obsCalc(TTree *events){
+    double croSec;
     vector<double> *p1 = new vector<double>[5];
     vector<double> *p2 = new vector<double>[5];
     vector<double> *p3 = new vector<double>[5];
     vector<double> obsdata;
     PxPyPzEVector pb, pa1, pa2;
+    events->SetBranchAddress("crossSection",&croSec);
     events->SetBranchAddress("particle1",&p1);
     events->SetBranchAddress("particle2",&p2);
     events->SetBranchAddress("particle3",&p3);
+    events->GetEntry(1);
+    vector<double> eventInfo=eventtype(*p1,*p2,*p3);
     int noEntries = (int)events->GetEntries();
     int n1=0, n2=0, n3=0, n4=0;
     // cout << noEntries <<endl;
@@ -209,7 +233,6 @@ vector<double> obsCalc(TTree *events){
         events->GetEntry(i);
         vector<vector<double>> p{*p1,*p2,*p3};
         int numa=0;
-        vector<double> eventInfo=eventtype(*p1,*p2,*p3);
         // printf("%d",eventInfo.size());
         // cout << eventInfo[1] << endl;
         if (eventInfo[0]==1)
@@ -280,18 +303,20 @@ vector<double> obsCalc(TTree *events){
             pa1.SetPxPyPzE(p[1][1],p[1][2],p[1][3],p[1][4]);
             pa2.SetPxPyPzE(p[2][1],p[2][2],p[2][3],p[2][4]);
         }
-        if (cutcond(pb,pa1,pa2) && eventInfo[0]==1/* && ((double)rand()/RAND_MAX)<eventInfo[1] */)
+        if (cutcond(pb,pa1,pa2))
         {
-            obsdata.push_back(obs(pa1,pa2));
+            obsdata.push_back(obs(pa1,pa2,pb));
         }
     }
+    obsdata.push_back(eventInfo[1]);
+    obsdata.push_back(croSec);
     // cout << n1 << " " << n2 << " " << n3 << " " << n4 << endl;
     return obsdata;
 }
 
 vector<vector<double>> background(){
     TFile *bkgfile = new TFile("/mnt/d/work/bghb/data/bkg.root");
-    int bkgNum=1;
+    int bkgNum=9;
     vector<vector<double>> obsdata;
     for (int i = 0; i < bkgNum; i++)
     {
@@ -359,14 +384,14 @@ void analysis(){
     TH1D *empty = new TH1D("t","t",20,-1,1);
     vector<vector<double>> obsMatrix,binSignal,obsbkg;
     int noEvents=3;
-    /* for (int i = 0; i < noEvents; i++)
+    for (int i = 0; i < noEvents; i++)
     {
         char treename[100];
         sprintf(treename,"%d",i);
         TTree *event=(TTree*)signalfile->Get(treename);
         obsMatrix.push_back(obsCalc(event));
         cout << obsCalc(event).size() << endl;
-    } */
+    }
     signalfile->Close();
     delete signalfile;
     obsbkg=background();
@@ -374,6 +399,6 @@ void analysis(){
     {
         cout << obsbkg[i].size() << endl;
     }
-    // draw(nbins,obsMatrix[0],obsMatrix[1],obsMatrix[2],obsbkg[0]);
+    draw(nbins,obsMatrix[0],obsMatrix[1],obsMatrix[2],obsbkg);
     // outputBin(obsMatrix,obsbkg);
 }
